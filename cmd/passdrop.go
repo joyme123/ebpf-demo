@@ -8,14 +8,21 @@ import (
 	"context"
 
 	"github.com/joyme123/ebpf-demo/pkg/utils"
-	"github.com/joyme123/ebpf-demo/pkg/xconnect"
+	"github.com/joyme123/ebpf-demo/pkg/xdp_pass_and_drop"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
-// xconnectCmd represents the xconnect command
-var xconnectCmd = &cobra.Command{
-	Use:   "xconnect",
+var opt options
+
+type options struct {
+	Prog string
+	Intf string
+}
+
+// passdropCmd represents the passdrop command
+var passdropCmd = &cobra.Command{
+	Use:   "passdrop",
 	Short: "A brief description of your command",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
@@ -24,49 +31,36 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Info("eBPF x-connect")
+		log.Info("eBPF pass or drop")
 
 		ctx, cancel := context.WithCancel(context.Background())
 		utils.SetupSigHandlers(cancel)
 
-		conf, err := cmd.Flags().GetString("conf")
+		app, err := xdp_pass_and_drop.NewXdpPassAndDropApp()
 		if err != nil {
-			log.Errorf("flag conf is not provided, err: %s\n", err)
-			return
+			log.Panicf("new app error: %s", err)
 		}
-
-		cfg, err := newFromFile(conf)
+		err = app.Launch(ctx, opt.Intf, opt.Prog)
 		if err != nil {
-			log.Errorf("parse configurations from file failed, err: %s\n", err)
-			return
+			log.Panicf("launch app error: %s", err)
 		}
-
-		updateCh := make(chan map[string]string, 1)
-		go configWatcher(conf, updateCh)
-
-		app, err := xconnect.NewXconnectApp(cfg.Links)
-		if err != nil {
-			log.Errorf("Loading eBPF: %s", err)
-			return
-		}
-
-		app.Launch(ctx, updateCh)
-
-		return
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(xconnectCmd)
+	rootCmd.AddCommand(passdropCmd)
 
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// xconnectCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// passdropCmd.PersistentFlags().String("foo", "", "A help for foo")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	xconnectCmd.Flags().StringP("conf", "c", "", "configuration file")
-	cobra.MarkFlagRequired(xconnectCmd.Flags(), "conf")
+	// passdropCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	passdropCmd.Flags().StringVar(&opt.Prog, "prog", "", "which program to load: xdp_pass, xdp_drop, xdp_aborted")
+	passdropCmd.Flags().StringVar(&opt.Intf, "intf", "", "the network interface to load xdp program")
+	cobra.MarkFlagRequired(passdropCmd.Flags(), "prog")
+	cobra.MarkFlagRequired(passdropCmd.Flags(), "intf")
 }

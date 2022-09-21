@@ -1,4 +1,4 @@
-module github.com/joyme123/cobra-cli
+module github.com/joyme123/ebpf-demo
 
 go 1.18
 
